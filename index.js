@@ -3,7 +3,6 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
-// Get token address and ScrapingBee API key from env vars
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
 const SCRAPINGBEE_KEY = process.env.SCRAPINGBEE_KEY;
 
@@ -12,7 +11,6 @@ if (!TOKEN_ADDRESS || !SCRAPINGBEE_KEY) {
     process.exit(1);
 }
 
-// Convert token address to pump.fun URL
 const tokenUrl = `https://pump.fun/advanced/coin/${TOKEN_ADDRESS}`;
 
 async function fetchPage(url, attempt = 1) {
@@ -21,7 +19,7 @@ async function fetchPage(url, attempt = 1) {
             api_key: SCRAPINGBEE_KEY,
             url,
             render_js: 'true',
-            wait_for: 5 // wait 5 seconds for JS to load
+            wait_for: 5
         };
         const { data } = await axios.get('https://app.scrapingbee.com/api/v1/', { params, timeout: 60000 });
         return data;
@@ -46,4 +44,31 @@ function extractSocials(html) {
         if (link.includes('twitter.com') || link.includes('x.com')) socials.twitter = link;
         else if (link.includes('t.me') || link.includes('telegram.me')) socials.telegram = link;
         else if (link.includes('discord.gg') || link.includes('discord.com')) socials.discord = link;
-        else if (!link.includes('pump.fun') &&
+        else if (!link.includes('pump.fun') && !link.includes('#') && !link.startsWith('/')) {
+            if (!socials.website) socials.website = link;
+        }
+    });
+
+    if (socials.telegram && socials.telegram.includes('t.me/pump_tech_updates')) {
+        delete socials.telegram;
+    }
+
+    return socials;
+}
+
+async function main() {
+    console.log(`🚀 Scraping ${tokenUrl}...`);
+    try {
+        const html = await fetchPage(tokenUrl);
+        const socials = extractSocials(html);
+
+        console.log('✅ Socials found:', socials);
+
+        fs.writeFileSync('out.json', JSON.stringify({ token: TOKEN_ADDRESS, url: tokenUrl, socials }, null, 2));
+        console.log('📂 Saved results to out.json');
+    } catch (err) {
+        console.error('❌ Failed to scrape socials:', err.message);
+    }
+}
+
+main();
