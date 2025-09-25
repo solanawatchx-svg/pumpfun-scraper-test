@@ -3,6 +3,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
+// Get token address and ScrapingBee API key from env vars
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
 const SCRAPINGBEE_KEY = process.env.SCRAPINGBEE_KEY;
 
@@ -11,7 +12,9 @@ if (!TOKEN_ADDRESS || !SCRAPINGBEE_KEY) {
     process.exit(1);
 }
 
-const tokenUrl = `https://pump.fun/advanced/coin/${TOKEN_ADDRESS}`;
+// Convert token address to pump.fun URL and encode it
+const tokenUrl = `https://pump.fun/advanced/coin/${encodeURIComponent(TOKEN_ADDRESS)}`;
+console.log('🔗 Fetching URL:', tokenUrl);
 
 async function fetchPage(url, attempt = 1) {
     try {
@@ -19,7 +22,7 @@ async function fetchPage(url, attempt = 1) {
             api_key: SCRAPINGBEE_KEY,
             url,
             render_js: 'true',
-            wait_for: 5
+            wait_for: 5 // wait 5 seconds for JS to load
         };
         const { data } = await axios.get('https://app.scrapingbee.com/api/v1/', { params, timeout: 60000 });
         return data;
@@ -49,6 +52,7 @@ function extractSocials(html) {
         }
     });
 
+    // Remove default Pump.fun Telegram
     if (socials.telegram && socials.telegram.includes('t.me/pump_tech_updates')) {
         delete socials.telegram;
     }
@@ -64,6 +68,7 @@ async function main() {
 
         console.log('✅ Socials found:', socials);
 
+        // Save to out.json
         fs.writeFileSync('out.json', JSON.stringify({ token: TOKEN_ADDRESS, url: tokenUrl, socials }, null, 2));
         console.log('📂 Saved results to out.json');
     } catch (err) {
