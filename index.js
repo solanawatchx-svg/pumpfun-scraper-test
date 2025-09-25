@@ -27,15 +27,21 @@ const crawler = new PlaywrightCrawler({
             const allLinks = await page.$$eval('a[href]', els => els.map(e => e.href));
             const socials = {};
 
+            // Collect links
             allLinks.forEach(link => {
-                const l = link.toLowerCase();
+                const l = (link || '').toLowerCase();
+                if (!l) return;
+
                 if (l.includes('twitter.com') || l.includes('x.com')) socials.twitter = link;
                 else if (l.includes('t.me') || l.includes('telegram.me')) socials.telegram = link;
                 else if (l.includes('discord.gg') || l.includes('discord.com')) socials.discord = link;
-                else if (!l.includes('pump.fun') && !l.includes('#') && !l.startsWith('/')) {
-                    if (!socials.website) socials.website = link;
-                }
             });
+
+            // Filter out pump.fun links to find the real website
+            const externalLinks = allLinks.filter(l => !l.includes('pump.fun') && !l.includes('#') && !l.startsWith('/'));
+            if (externalLinks.length > 0) {
+                socials.website = externalLinks[0]; // take the first remaining external link
+            }
 
             // Remove default Pump.fun Telegram
             if (socials.telegram && socials.telegram.includes('t.me/pump_tech_updates')) {
