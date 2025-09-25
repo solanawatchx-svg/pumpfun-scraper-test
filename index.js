@@ -22,12 +22,12 @@ const crawler = new PlaywrightCrawler({
         try {
             log.info(`Visiting ${request.url}`);
             await page.goto(request.url, { waitUntil: 'domcontentloaded' });
-            await page.waitForTimeout(4000); // wait 4s for socials to load
+            await page.waitForTimeout(4000); // wait 4s for JS to render
 
-            const allLinks = await page.$$eval('a[href]', els => els.map(e => e.href));
             const socials = {};
 
-            // Collect links
+            // Scrape Twitter/X, Telegram, Discord
+            const allLinks = await page.$$eval('a[href]', els => els.map(e => e.href));
             allLinks.forEach(link => {
                 const l = (link || '').toLowerCase();
                 if (!l) return;
@@ -37,18 +37,18 @@ const crawler = new PlaywrightCrawler({
                 else if (l.includes('discord.gg') || l.includes('discord.com')) socials.discord = link;
             });
 
-            // Filter out pump.fun links to find the real website
-            const externalLinks = allLinks.filter(l => !l.includes('pump.fun') && !l.includes('#') && !l.startsWith('/'));
-            if (externalLinks.length > 0) {
-                socials.website = externalLinks[0]; // take the first remaining external link
-            }
-
             // Remove default Pump.fun Telegram
             if (socials.telegram && socials.telegram.includes('t.me/pump_tech_updates')) {
                 delete socials.telegram;
             }
 
+            // Scrape official website by looking for "Website" button or link
+            const websiteLink = await page.$eval('a:has-text("Website")', el => el.href).catch(() => null);
+            if (websiteLink) socials.website = websiteLink;
+
             console.log('✅ Socials found:', socials);
+
+            // Save output
             fs.writeFileSync('out.json', JSON.stringify({ token: TOKEN_ADDRESS, url: tokenUrl, socials }, null, 2));
             console.log('📂 Saved results to out.json');
 
