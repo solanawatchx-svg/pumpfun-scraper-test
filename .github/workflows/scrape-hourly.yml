@@ -1,9 +1,8 @@
-# .github/workflows/scrape-hourly.yml
 name: pumpfun-scrape-hourly
 
 on:
   schedule:
-    - cron: '0 * * * *'   # Runs at minute 0 every hour
+    - cron: '0 * * * *'   # Runs every hour
   workflow_dispatch:       # Allows manual trigger
 
 jobs:
@@ -20,7 +19,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-         run: npm install
+        run: npm install
 
       - name: Run Pump.fun scraper
         env:
