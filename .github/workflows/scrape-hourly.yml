@@ -3,7 +3,7 @@ name: pumpfun-scrape-hourly
 on:
   schedule:
     - cron: '0 * * * *'   # Runs every hour
-  workflow_dispatch:       # Allows manual trigger
+  workflow_dispatch:       # Manual trigger
 
 jobs:
   scrape:
@@ -23,6 +23,5 @@ jobs:
 
       - name: Run Pump.fun scraper
         env:
-          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           TOKEN_ADDRESS: ${{ secrets.TOKEN_ADDRESS }}
         run: node index.js
