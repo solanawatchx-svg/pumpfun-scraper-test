@@ -1,1 +1,29 @@
+# .github/workflows/scrape-hourly.yml
+name: pumpfun-scrape-hourly
 
+on:
+  schedule:
+    - cron: '0 * * * *'   # Runs at minute 0 every hour
+  workflow_dispatch:       # Allows manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Pump.fun scraper
+        env:
+          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
+          TOKEN_ADDRESS: ${{ secrets.TOKEN_ADDRESS }}
+        run: node index.js
