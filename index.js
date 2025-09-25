@@ -1,79 +1,55 @@
 // index.js
-const axios = require('axios');
-const cheerio = require('cheerio');
+const { PlaywrightCrawler, log } = require('crawlee');
 const fs = require('fs');
 
-// Get token address and ScrapingBee API key from env vars
+// Get token address from env
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
-const SCRAPINGBEE_KEY = process.env.SCRAPINGBEE_KEY;
-
-if (!TOKEN_ADDRESS || !SCRAPINGBEE_KEY) {
-    console.error('❌ Missing TOKEN_ADDRESS or SCRAPINGBEE_KEY env vars.');
+if (!TOKEN_ADDRESS) {
+    console.error('❌ Missing TOKEN_ADDRESS env var.');
     process.exit(1);
 }
 
-// Convert token address to pump.fun URL and encode it
-const tokenUrl = `https://pump.fun/advanced/coin/${encodeURIComponent(TOKEN_ADDRESS)}`;
-console.log('🔗 Fetching URL:', tokenUrl);
+// Convert token address to pump.fun URL
+const tokenUrl = `https://pump.fun/advanced/coin/${TOKEN_ADDRESS}`;
+console.log('🔗 Scraping URL:', tokenUrl);
 
-async function fetchPage(url, attempt = 1) {
-    try {
-        const params = {
-            api_key: SCRAPINGBEE_KEY,
-            url,
-            render_js: 'true',
-            wait_for: 5 // wait 5 seconds for JS to load
-        };
-        const { data } = await axios.get('https://app.scrapingbee.com/api/v1/', { params, timeout: 60000 });
-        return data;
-    } catch (err) {
-        if (attempt < 3) {
-            console.log(`⚠️ Fetch failed, retrying attempt ${attempt + 1}...`);
-            return fetchPage(url, attempt + 1);
-        } else {
-            throw err;
+const crawler = new PlaywrightCrawler({
+    launchContext: {
+        launchOptions: { headless: true },
+    },
+    maxConcurrency: 1,
+    async requestHandler({ page, request }) {
+        try {
+            log.info(`Visiting ${request.url}`);
+            await page.goto(request.url, { waitUntil: 'domcontentloaded' });
+            await page.waitForTimeout(4000); // wait 4s for socials to load
+
+            const allLinks = await page.$$eval('a[href]', els => els.map(e => e.href));
+            const socials = {};
+
+            allLinks.forEach(link => {
+                const l = link.toLowerCase();
+                if (l.includes('twitter.com') || l.includes('x.com')) socials.twitter = link;
+                else if (l.includes('t.me') || l.includes('telegram.me')) socials.telegram = link;
+                else if (l.includes('discord.gg') || l.includes('discord.com')) socials.discord = link;
+                else if (!l.includes('pump.fun') && !l.includes('#') && !l.startsWith('/')) {
+                    if (!socials.website) socials.website = link;
+                }
+            });
+
+            // Remove default Pump.fun Telegram
+            if (socials.telegram && socials.telegram.includes('t.me/pump_tech_updates')) {
+                delete socials.telegram;
+            }
+
+            console.log('✅ Socials found:', socials);
+            fs.writeFileSync('out.json', JSON.stringify({ token: TOKEN_ADDRESS, url: tokenUrl, socials }, null, 2));
+            console.log('📂 Saved results to out.json');
+
+        } catch (err) {
+            log.error('❌ Error scraping socials:', err);
         }
     }
-}
+});
 
-function extractSocials(html) {
-    const $ = cheerio.load(html);
-    const socials = {};
-
-    $('a[href]').each((_, el) => {
-        const link = ($(el).attr('href') || '').toLowerCase();
-        if (!link) return;
-
-        if (link.includes('twitter.com') || link.includes('x.com')) socials.twitter = link;
-        else if (link.includes('t.me') || link.includes('telegram.me')) socials.telegram = link;
-        else if (link.includes('discord.gg') || link.includes('discord.com')) socials.discord = link;
-        else if (!link.includes('pump.fun') && !link.includes('#') && !link.startsWith('/')) {
-            if (!socials.website) socials.website = link;
-        }
-    });
-
-    // Remove default Pump.fun Telegram
-    if (socials.telegram && socials.telegram.includes('t.me/pump_tech_updates')) {
-        delete socials.telegram;
-    }
-
-    return socials;
-}
-
-async function main() {
-    console.log(`🚀 Scraping ${tokenUrl}...`);
-    try {
-        const html = await fetchPage(tokenUrl);
-        const socials = extractSocials(html);
-
-        console.log('✅ Socials found:', socials);
-
-        // Save to out.json
-        fs.writeFileSync('out.json', JSON.stringify({ token: TOKEN_ADDRESS, url: tokenUrl, socials }, null, 2));
-        console.log('📂 Saved results to out.json');
-    } catch (err) {
-        console.error('❌ Failed to scrape socials:', err.message);
-    }
-}
-
-main();
+crawler.run([tokenUrl]);
